@@ -1,0 +1,259 @@
+---
+title: "Analisis Ketahanan Hidup"
+author: "Tim Modul 60"
+date: "3/22/2021"
+output: html_document
+---
+
+Instal package yang dibutuhkan
+```{r message=FALSE, warning=FALSE}
+library(knitr)
+library(readxl)
+library(survival)
+library(survminer)
+library(coin)
+library(car)
+library(survMisc)
+library(dplyr)
+library(tidyr)
+```
+
+
+# Contoh Soal 2.2 
+
+## Import Data
+```{r}
+data2.1 <-  read_excel("../data/AKH_Data contoh Soal.xlsx", sheet = "Contoh 2.1")
+str(data2.1)
+```
+
+```{r}
+kable(head(data2.1))
+```
+
+## Fungsi survival
+```{r}
+data2.1$Group <- as.factor(data2.1$Group)
+fit1 <- survfit(Surv(t, Status) ~ Group, data = data2.1)
+summary(fit1)
+```
+
+## Kurva KM (Ploting)
+```{r}
+ggsurvplot(fit1, data = data2.1,ggtheme = theme_bw())
+```
+
+
+# Contoh Soal 3.1 
+
+## Uji Long-rank test
+```{r}
+test <- survdiff(Surv(t, Status) ~ Group, data = data2.1)
+test
+```
+Kesimpulan: Dengan tingkat signifikansi 5%, terdapat perbedaan pola fungsi survival antargroup
+
+
+## Weigthting Test Statistik
+```{r}
+logrank_test(Surv(t, Status) ~ Group, data = data2.1, type="Gehan-Breslow")
+```
+
+*Catatan :*
+
+1. Hasilnya merupakan pendekatan (Berbeda dengan cara manual tapi tidak signifikan perbedaannya)
+2. Pilihan Tipe tes, type = c("logrank", "Gehan-Breslow", "Tarone-Ware","Peto-Peto", "Prentice", "Prentice-Marek", "Andersen-Borgan-Gill-Keiding", "Fleming-Harrington", "Gaugler-Kim-Liao", "Self")
+
+
+
+# Contoh Soal 5.1
+
+## Import data
+```{r}
+data5.1 <- read_excel("../data/AKH_Data contoh Soal.xlsx", sheet = "Contoh 5.1")
+kable(data5.1)
+```
+
+
+## Estimasi Parameter Cox-PH
+```{r}
+data5.1$X1 <- as.factor(data5.1$X1)
+model5.1 <- coxph(Surv(waktu,status)~X1, data = data5.1)
+model5.1
+```
+Jadi diperoleh $\beta_1=0.3466$\
+
+
+# Contoh Soal 5.2
+
+## Import data
+```{r}
+data5.2 <-  read_excel("../data/AKH_Data contoh Soal.xlsx", sheet = "Contoh 5.2")
+str(data5.2)
+```
+
+```{r}
+kable(head(data5.2))
+```
+
+## Model Cox_PH
+
+Model Group sebagai kovariate
+
+```{r}
+data5.2$Group <- as.factor(data5.2$Group)
+model5.2_Group <- coxph(Surv(t,status)~Group, data = data5.2)
+model5.2_Group
+```
+
+## Model Kategori logWBC sebagai kovariate
+```{r}
+data5.2$katlogWBC <- factor(if_else(data5.2$logWBC<=2.3,0,if_else(data5.2$logWBC<=3,1,2)))  #kategorikkan LogWBC
+model5.2_katlogWBC <- coxph(Surv(t,status)~katlogWBC, data = data5.2)
+model5.2_katlogWBC
+```
+
+## Model Group dan kategori logWBC sebagai kovariate tanpa interaksi
+```{r}
+model5.2_GroupkatlogWBC <- coxph(Surv(t,status)~Group+katlogWBC, data = data5.2)
+model5.2_GroupkatlogWBC
+```
+## Model interaksi Group dan LogWBC
+```{r}
+model5.2_GroupxkatkatlogWBC <- coxph(Surv(t,status)~Group*logWBC, data = data5.2)
+model5.2_GroupxkatkatlogWBC
+```
+
+
+# Contoh Soal 6.1
+
+## Tes Asumsi PH
+
+### Metode Grafik log(-log(s(t)))
+
+*catatan*: Plotingannya merupakan pencerminan kurva -log(-log(S(t)))terhadap sumbu-x (sumbu horisontal) sehingga kesimpulannya sama melihat kesejajarannya tapi berbeda arah
+
+```{r}
+#a
+fit5.2_Group <- survfit(Surv(t,status)~Group, data = data5.2)
+ggsurvplot(fit5.2_Group)
+```
+
+```{r}
+ggsurvplot(fit5.2_Group, fun = "cloglog")
+```
+
+Kurva sejajar : Asumsi proportional hazard terpenuhi pada kovariate Group
+
+```{r}
+#b
+fit5.2_katlogWBC <- survfit(Surv(t,status)~katlogWBC, data = data5.2)
+ggsurvplot(fit5.2_katlogWBC, fun = "cloglog")
+```
+
+### kurva -log(-log(s(t)))
+
+```{r}
+#a
+sumfit5.2a <- summary(fit5.2_Group)
+plot(sumfit5.2a$time[sumfit5.2a$strata=="Group=2"],
+     -log(-log(sumfit5.2a$surv[sumfit5.2a$strata=="Group=2"])),
+     type ="s", xlab = "t", ylab ="-log-log S" )
+lines(sumfit5.2a$time[sumfit5.2a$strata=="Group=1"],
+     -log(-log(sumfit5.2a$surv[sumfit5.2a$strata=="Group=1"])),
+     type ="s", col=2)
+legend("topright",legend = c("2","1"), col = 1:3 , lty = 1:3, title ="Group")
+```
+
+```{r}
+#b
+sumfit5.2b <- summary(fit5.2_katlogWBC)
+plot(sumfit5.2b$time[sumfit5.2b$strata=="katlogWBC=2"],
+     -log(-log(sumfit5.2b$surv[sumfit5.2b$strata=="katlogWBC=2"])),
+     type ="s", xlab = "t", ylab ="-log-log S" )
+lines(sumfit5.2b$time[sumfit5.2b$strata=="katlogWBC=1"],
+     -log(-log(sumfit5.2b$surv[sumfit5.2b$strata=="katlogWBC=1"])),
+     type ="s", col=2)
+lines(sumfit5.2b$time[sumfit5.2b$strata=="katlogWBC=0"],
+     -log(-log(sumfit5.2b$surv[sumfit5.2b$strata=="katlogWBC=0"])),
+     type ="s", col=3)
+legend("bottomleft",legend = c("2","1","0"), col = 1:3, lty = 1:3, title ="katlogWBC")
+```
+
+
+
+## Uji Goodness of Fit
+
+```{r}
+#a
+cox.zph(model5.2_Group)
+```
+
+```{r}
+#b
+cox.zph(model5.2_katlogWBC)
+```
+
+*Kesimpulan:* Dengan tingkat signifikansi 5%, untuk kedua model memenuhi asumsi PH
+
+# Contoh 7.1
+
+Data cancer merupakan data yang berasala pada package survival
+
+## Model sex+ph.karno+catage
+```{r}
+data7.1 <- cancer[,c("time","status","sex","age","ph.karno")]
+str(data7.1)
+```
+
+```{R}
+data7.1$catage<- Recode(data7.1$age, "lo:47=1;48:71=2;72:hi=3") #mengkategorikan umur
+data7.1$sex <- as.factor(data7.1$sex)
+data7.1 <- na.omit(data7.1) #mengahpus observasi yang memiliki missing value
+kable(head(data7.1))
+```
+
+```{r}
+model7.1a<- coxph(Surv(time,status)~ catage + ph.karno + sex, data = data7.1)
+cox.zph(model7.1a)
+```
+
+*Kesimpulan:* Variabel Ph,karno tidak memenuhi asumsi PH
+
+## Model strata ph.karno
+
+```{r}
+model7.1b <- coxph(Surv(time,status)~sex+strata(ph.karno)+catage, data = data7.1)
+cox.zph(model7.1b)
+```
+
+# Contoh 7.2
+
+## Model sex+ph.karno+strata(catage)
+```{r}
+modelcancer1 <- coxph(Surv(time,status)~sex+ph.karno+strata(catage), data =data7.1)
+modelcancer1
+```
+
+```{r}
+modelcancer1$loglik[2]
+```
+
+## Model ph.karno+strata(catage)
+```{r}
+modelcancer2 <- coxph(Surv(time,status)~ph.karno+strata(catage), data = data7.1)
+modelcancer2
+```
+
+```{r}
+modelcancer2$loglik[2]
+```
+
+## tes apakah Sex berpengaruh pada model strata
+
+```{r}
+pchisq(-2*modelcancer2$loglik[2]-(-2*modelcancer1$loglik[2]),1,lower.tail = F)
+```
+
+*Kesimpulan :* Jenis kelamin berpengaruh pada model atau modelcancer1 lebih baik 
+
